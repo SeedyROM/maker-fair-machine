@@ -2,16 +2,6 @@ import socket
 import time
 import RPi.GPIO as GPIO
 
-# Setup out TCP/IP socket
-s = socket.socket(
-	socket.AF_INET, socket.SOCK_STREAM
-)
-s.connect(("localhost", 13000))
-
-# Setup GPIO
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(26, GPIO.IN)
-
 # Generic button interrupt
 def edge_interrupt(socket, button_num):
 	def interrupt(channel):
@@ -20,19 +10,41 @@ def edge_interrupt(socket, button_num):
 		else:
 			socket.sendall('Button'+ str(button_num) +' 0;')
 	return interrupt
-	
-# Find edges
-GPIO.add_event_detect(26, GPIO.BOTH, callback=edge_interrupt(s, 1))
 
+# Machine class to store socket and button states
+class ButtonMachine:
+	def __init__(self, port):
+		self.pins = [(26, 1)]
+		
+		# Initialize our interface
+		self.setup_socket(port)
+		self.setup_gpio()
+		self.setup_interrupts()
+		
+	def setup_socket(self, port):
+		self.socket = socket.socket(
+			socket.AF_INET, socket.SOCK_STREAM
+		)
+		self.socket.connect(("localhost", port))
+		
+	def setup_gpio(self):
+		GPIO.setmode(GPIO.BCM)
+		GPIO.setup(26, GPIO.IN)
+		
+	def setup_interrupts(self):
+		for pin, num in self.pins:
+			GPIO.add_event_detect(
+				pin,
+				GPIO.BOTH,
+				callback=edge_interrupt(self.socket, num)
+			)
+	
+	def clean_up(self):
+		self.socket.close()
+
+m = ButtonMachine(13000)
 try:
-	while True:
-		#if not wiringpi.digitalRead(26):
-			#message = 'Button1 1;'
-			#s.sendall(message)
-		#else:
-			#message = 'Button1 0;'
-			#s.sendall(message)
-			
+	while True:			
 		time.sleep(0.05)
 finally:
-	s.close()
+	m.clean_up()
